@@ -1,0 +1,2 @@
+Source codes in this repopsitory have MIT/X11/BSD-style licenses. However, the production (codecbox.js file) is linked with ffmpeg and (optionally) with lame, libvpx, openh264, opus, x264, and zlib. Most parts of ffmpeg are under LGPL v2.1+, but some parts are under GPL v2+. Note that x264 is under GPL v2. You should figure out any license issues with these libraries yourself. You may adjust the build script (Gruntfile.js) to exclude or include optional components/libraries.
+
