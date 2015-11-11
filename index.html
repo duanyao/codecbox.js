@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>codecbox.js - a javascript library providing fine-grained APIs for video/audio processing based on FFmpeg</title>
+  </head>
+<body>
+<h1>codecbox.js</h1>
+<p>This page demostrates a naive media player based on codecbox.js (<a href="https://github.com/duanyao/codecbox.js">source code</a>). It is able to play most common audio/video formats without any plugin.</p>
+<hr>
+<p>Select a media file to play: <input type="file" accept="video/*, audio/*" disabled /></p>
+<canvas height="480" width="720" style="border:1px solid gray; display: block; margin: 1em auto"></canvas>
+<hr>
+<p>Codecbox.js is a pure javascript library providing fine-grained APIs for video/audio processing (currently only decoding is supported). Codecbox.js is based on <a href="http://www.ffmpeg.org/">FFmpeg</a> and related libraries, which are compiled by <a href="http://kripken.github.io/emscripten-site/">emscripten</a> into <a href="http://asmjs.org">asm.js</a>. Codecbox.js should run reasonably well in browsers with web worker and asm.js support.</p>
+<script>
+  var ffworker = new Worker('codecbox-decoder-worker.js');
+  var input = document.querySelector('input');
+  var canvas = document.querySelector("canvas");
+  var canvas2D = canvas.getContext("2d");
+  var videoBuffers = [];
+  var audioBuffers = [];
+  var videoBufferThreshold = 4, audioBufferThreshold = 0;
+    videoBufferLimit = 12, audioBufferLimit = 0;
+  var audioBufferSize = 2048;
+  var metadata;
+  var startTime = -1;
+  var frameCount = 0;
+  var ended = false;
+  var audioContext = new AudioContext();
+  audioContext.suspend();
+  var scriptProcessor;
+
+  input.onchange = function() {
+    input.disabled = true;
+    ffworker.postMessage({ type: 'openFile', data: input.files[0], sampleRate: audioContext.sampleRate });
+  }
+
+  ffworker.onmessage = function(ev) {
+    var msg = ev.data;
+    if (msg.error) {
+      console.error('Error: ' + msg.type, msg);
+    }
+    switch(msg.type) {
+      case 'load':
+        input.disabled = false;
+        break;
+      case 'openFile':
+        if (!msg.error) {
+          console.log('File opened:', msg);
+          play(msg);
+        }
+        break;
+      case 'decode':
+        onDecode(msg);
+        break;
+      default:
+        console.warn('unkown message type: ' + msg.type);
+    }
+  }
+
+  function play(meta) {
+    ffworker.postMessage({type: 'decode'});
+    metadata = meta;
+    audioBufferThreshold = Math.max(metadata.sampleRate * 0.1, audioBufferSize);
+    audioBufferLimit = audioBufferThreshold * 10;
+    clock = -1;
+    if (metadata.hasVideo) {
+      canvas.width = metadata.width;
+      canvas.height = metadata.height;
+      requestAnimationFrame(renderVideo);
+    }
+    if (metadata.hasAudio) {
+      audioContext.resume();
+      var scriptProcessor = audioContext.createScriptProcessor(1024, 0, 2);
+      scriptProcessor.onaudioprocess = onaudioprocess;
+      scriptProcessor.connect(audioContext.destination);
+    }
+    requestDecode();
+  }
+
+  function onDecode(msg) {
+    //console.log('onDecode');
+    if (msg.ended || msg.error) {
+      ended = true;
+      audioContext.suspend();
+      return;
+    }
+    if (msg.dataType === 'video') {
+      //console.log('onDecode:video');
+      videoBuffers.push(msg.data);
+    } else if (msg.dataType === 'audio') {
+      //console.log('onDecode:audio');
+      audioBuffers.push(msg.data);
+    } else if(msg.dataType === 'inert') {
+    } else {
+      //console.log('onDecode: unkown:', msg);
+    }
+    requestDecode();
+  }
+
+  function requestDecode() {
+    //console.log('requestDecode');
+    if (needDecode()) {
+      //console.log('requestDecode:true');
+      ffworker.postMessage({type: 'decode'});
+    } //else console.log('requestDecode:false');
+  }
+
+  function needDecode() {
+    var abl = getAudioBufferLength(), vbl = videoBuffers.length;
+    return metadata.hasAudio && abl <= audioBufferThreshold || 
+      metadata.hasVideo && vbl <= videoBufferThreshold;
+  }
+
+  function getAudioBufferLength() {
+    return audioBuffers.reduce(function(prev, cur) { return prev + cur.length / 2 }, 0);
+  }
+
+  function renderVideo() {
+    //console.log('renderVideo');
+    if (ended) return;
+    requestAnimationFrame(renderVideo);
+    if (startTime < 0) {
+      if(needDecode()) return;
+      startTime = performance.now();
+    }
+    while (frameCount < (performance.now() - startTime) / 1000 * metadata.frameRate + 1) {
+      //console.log('renderVideo:', frameCount);
+      var buf = videoBuffers.shift();
+      if (!buf) break;
+      frameCount = frameCount + 1;
+      var img = new ImageData(new Uint8ClampedArray(buf), metadata.width, metadata.height);
+      canvas2D.putImageData(img, 0, 0);
+      ffworker.postMessage({type: 'videoBuffer', data: buf}, [buf]);
+    }
+    requestDecode();
+  }
+
+  function onaudioprocess(ev) {
+    if (startTime < 0) {
+      if(needDecode()) return;
+      startTime = performance.now();
+    }
+    //console.log('onaudioprocess');
+    var out = ev.outputBuffer;
+    var bufs = [out.getChannelData(0), out.getChannelData(1)];
+    var chn = 2, copied = 0;
+    while(audioBuffers.length && copied < bufs[0].length) {
+      var ab = audioBuffers.shift();
+      var limit = Math.min((bufs[0].length - copied) * chn, ab.length);
+      for (var j = 0; j < limit; j += chn) {
+        for (var k = 0; k < chn; k++) {
+          bufs[k][copied + j / chn] = ab[j + k];
+        }
+      }
+      copied += limit / chn;
+      if (copied === bufs[0].length) {
+        if (limit < ab.length) {
+          ab = ab.subarray(limit);
+          audioBuffers.unshift(ab);
+        }
+        break;
+      }
+    }
+    requestDecode();
+  }
+</script>
+</body>
+</html>
