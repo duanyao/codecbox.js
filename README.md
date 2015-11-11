@@ -1,6 +1,8 @@
 # codecbox.js
 
-Codecbox.js is a pure javascript library providing fine-grained APIs for video/audio processing (currently only decoding is supported). Codecbox.js is based on [FFmpeg](http://www.ffmpeg.org/) and related libraries, which are compiled by [emscripten](http://kripken.github.io/) into [asm.js](http://asmjs.org). Codecbox.js should run reasonably well in browsers with web worker and asm.js support.
+Codecbox.js is a pure javascript library providing fine-grained APIs for video/audio processing (currently only decoding is supported). Codecbox.js is based on [FFmpeg](http://www.ffmpeg.org/) and related libraries, which are compiled by [emscripten](http://kripken.github.io/emscripten-site/) into [asm.js](http://asmjs.org). Codecbox.js should run reasonably well in browsers with web worker and asm.js support.
+
+View the [demo page](http://duanyao.github.io/codecbox.js/).
 
 Currently codecbox.js is only provided as source code, you have to build it yourself.
 
@@ -20,7 +22,7 @@ You need a Linux or similar system to build codecbox.js.
 
 6. Execute command `grunt build`. This should compile ffmpeg etc. and produces `codecbox.js` and `codecbox.js.mem` in `src` dir.
 
-7. Load `src/demo-player.html` and try to play a media file (webm, flv and mp3 should be fine by default, mp4 may have issue).
+7. Load `src/demo-player.html` and try to play a media file (most common audio/video formats should be fine).
     This demo uses ffmpeg to decode media files, and renders video frames via HTML Canvas, and plays sound via Web Audio API.
 
 ## Customization
