@@ -77,7 +77,7 @@ Select a media file: <input type="file" accept="video/*, audio/*" disabled />
 
   function onDecode(msg) {
     //console.log('onDecode');
-    if (msg.ended) {
+    if (msg.ended || msg.error) {
       ended = true;
       audioContext.suspend();
       return;
