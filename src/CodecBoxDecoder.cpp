@@ -3,6 +3,7 @@ extern "C"
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
+#include <libavutil/imgutils.h>
 #include <libavutil/opt.h>
 #include <libavutil/channel_layout.h>
 #include <libavutil/samplefmt.h>
@@ -46,8 +47,8 @@ public:
     SwsContext *sws;
     SwrContext *swr;
     AVFrame* decodedFrame;
-    AVFrame* videoFrame;
-    void* videoBuffer;
+    int videoLineSize;
+    uint8_t* videoBuffer;
     float* audioBuffer;
 
     CodecBoxDecoderContext(const char* filePath, CodecBoxDecoder& host_):
@@ -60,7 +61,7 @@ public:
         sws(nullptr),
         swr(nullptr),
         decodedFrame(nullptr),
-        videoFrame(nullptr),
+        videoLineSize(0),
         videoBuffer(nullptr),
         audioBuffer(nullptr)
     {
@@ -126,7 +127,6 @@ public:
         if (sws) sws_freeContext(sws);
         sws = nullptr;
         if (decodedFrame) av_frame_free(&decodedFrame);
-        if (videoFrame) av_frame_free(&videoFrame);
         if (videoCodecContext)
         {
             avcodec_close(videoCodecContext);
@@ -165,8 +165,10 @@ public:
             avcodec_decode_video2(videoCodecContext, decodedFrame, &frameFinished, &packet);
             if(frameFinished)
             {
+                uint8_t* dest[] = { videoBuffer };
+                int destLineSize[] = { videoLineSize };
                 sws_scale(sws, decodedFrame->data, decodedFrame->linesize, 0, videoCodecContext->height,
-                          videoFrame->data, videoFrame->linesize);
+                        dest, destLineSize);
                 host.state = CodecBoxDecoderState::Video;
                 host.buffer = videoBuffer;
             }
@@ -200,7 +202,7 @@ public:
             host.buffer = audioBuffer;
         }
     err:
-        av_free_packet(&packet);
+        av_packet_unref(&packet);
     }
 
     void ensureVideoPostProcess()
@@ -208,7 +210,9 @@ public:
         if (host.state < CodecBoxDecoderState::Metadata) return;
         if (sws) return;
         auto destFmt = AV_PIX_FMT_RGBA;
-        int numBytes = avpicture_get_size(destFmt, host.width, host.height);
+        int align = 4;
+        videoLineSize = av_image_get_buffer_size(destFmt, host.width, 1, align);
+        int numBytes = av_image_get_buffer_size(destFmt, host.width, host.height, align);
         videoBuffer = (uint8_t *) av_malloc(numBytes);
         sws = sws_getContext(
                 videoCodecContext->width,
@@ -216,16 +220,14 @@ public:
                 videoCodecContext->pix_fmt,
                 host.width,
                 host.height,
-                AV_PIX_FMT_RGBA, // 也可以是 AV_PIX_FMT_RGBA 等
+                AV_PIX_FMT_RGBA,
                 SWS_BILINEAR,
                 NULL,
                 NULL,
                 NULL
                );
-        videoFrame = av_frame_alloc();
-        avpicture_fill((AVPicture*)videoFrame, (uint8_t *)videoBuffer, destFmt, host.width, host.height);
 
-        JIF(!videoBuffer || !sws || !videoFrame, "failed to alloc video buffers.");
+        JIF(!videoBuffer || !sws, "failed to alloc video buffers.");
         return;
     err:
         host.state = CodecBoxDecoderState::Failed;
