@@ -4,6 +4,7 @@ var videoBuffers = [];
 var decoder;
 var dir = '/decoding';
 
+self.Module = { memoryInitializerRequest: loadMemInitFile() }; // prefetch .mem file
 importScripts('codecbox.js');
 console.log('loaded codecbox.js');
 
@@ -32,6 +33,14 @@ onmessage = function(ev) {
     default:
       console.warn('unkown message type: ' + msg.type);
   }
+}
+
+function loadMemInitFile() {
+  var req = new XMLHttpRequest();
+  req.open('GET', 'codecbox.js.mem');
+  req.responseType = 'arraybuffer';
+  req.send();
+  return req;
 }
 
 function openFile(msg) {
