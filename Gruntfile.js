@@ -105,6 +105,7 @@ module.exports = function (grunt) {
   var ffDemuxers = [
     'aac',
     'ac3',
+    'asf', // also for wmv
     'avi',
     'avisynth',
     'flac',
@@ -112,6 +113,7 @@ module.exports = function (grunt) {
     'm4v',
     'matroska',
     'mjpeg',
+    'mov', // demux mov,mp4,m4a,3gp,3g2,mj2, see http://stackoverflow.com/questions/12408526/enabling-mp4-demuxer-in-ffmpeg-configure-command
     'mp3',
     'mpegps',
     'mpegts',
@@ -386,7 +388,7 @@ module.exports = function (grunt) {
   var EM_CPPFLAGS =  ' --bind -O3 -c -v -std=c++11 -I' + distPath + '/include ';
   var EM_LDFLAGS = ' -shared -L'  + distPath + '/lib -lavutil -lavformat -lavcodec -lswscale -lswresample -lavutil ' +
     ' -lz -lmp3lame -lvpx -lx264 -lopus -lopenh264 -lm ';
-  var EM_JSFLAGS = ' --bind -O3 -v -s OUTLINING_LIMIT=100000 -s VERBOSE=1 -s TOTAL_MEMORY=33554432 ';
+  var EM_JSFLAGS = ' --bind -O3 -v -s OUTLINING_LIMIT=100000 -s VERBOSE=1 -s TOTAL_MEMORY=67108864 ';
   var codeboxSrc = ['CodecBoxDecoder', 'embinder'];
   var codeboxTasks = [];
   var srcDir = path.join(rootPath, 'src');
