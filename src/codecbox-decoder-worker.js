@@ -4,11 +4,12 @@ var videoBuffers = [];
 var decoder;
 var dir = '/decoding';
 
-self.Module = { memoryInitializerRequest: loadMemInitFile() }; // prefetch .mem file
-importScripts('codecbox.js');
-console.log('loaded codecbox.js');
+self.Module = {
+  // memoryInitializerRequest: loadMemInitFile()
+}; // prefetch .mem file
 
-Module.postRun.push(function() {
+
+Module.onRuntimeInitialized = function() {
   console.log('postRun');
   // note that emscripten Module is not completely initialized until postRun.
   self.CodecBoxDecoder = Module.CodecBoxDecoder;
@@ -16,7 +17,10 @@ Module.postRun.push(function() {
   postMessage({ type: 'load' });
   FS.mkdir(dir);
   console.log('after FS.mkdir');
-});
+};
+
+importScripts('codecbox.js');
+console.log('loaded codecbox.js');
 
 onmessage = function(ev) {
   var msg = ev.data;
